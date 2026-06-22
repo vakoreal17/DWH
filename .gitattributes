@@ -1,3 +1,4 @@
+*.csv filter=lfs diff=lfs merge=lfs -text
 Task_1/generated_data/*.csv
 git[[:space:]]lfs[[:space:]]migrate[[:space:]]import[[:space:]]--include=Task_1/generated_data/*.csv[[:space:]]--include-ref=refs/heads/DWH_Task_2
 git[[:space:]]lfs[[:space:]]migrate[[:space:]]import[[:space:]]--include=Task_1/generated_data/*.csv filter=lfs diff=lfs merge=lfs -text
