@@ -182,11 +182,6 @@ def create_products():
 
     df = pd.DataFrame(rows)
 
-    df.to_csv(
-        os.path.join(OUTPUT_FOLDER,"products.csv"),
-        index=False
-    )
-
     print("Products:",len(df))
 
     return df
@@ -231,11 +226,6 @@ def create_customers():
 
     df=pd.DataFrame(rows)
 
-    df.to_csv(
-        os.path.join(OUTPUT_FOLDER,"customers.csv"),
-        index=False
-    )
-
     print("Customers:",len(df))
 
     return df
@@ -265,11 +255,6 @@ def create_stores():
         })
 
     df=pd.DataFrame(rows)
-
-    df.to_csv(
-        os.path.join(OUTPUT_FOLDER,"stores.csv"),
-        index=False
-    )
 
     print("Stores:",len(df))
 
@@ -302,20 +287,10 @@ def create_employees(stores):
 
     df=pd.DataFrame(rows)
 
-    df.to_csv(
-        os.path.join(OUTPUT_FOLDER,"employees.csv"),
-        index=False
-    )
-
     print("Employees:",len(df))
 
     return df
 
-#
-products = pd.read_csv("products.csv")
-customers = pd.read_csv("customers.csv")
-stores = pd.read_csv("stores.csv")
-employees = pd.read_csv("employees.csv")
 
 def random_date(start_date, end_date):
     delta = end_date - start_date
@@ -325,8 +300,10 @@ def random_date(start_date, end_date):
 # sales
 
 def generate_online_sales(products, customers, rows=500000):
+
     customers_list = customers.to_dict("records")
     products_list = products.to_dict("records")
+
     sales = []
 
     start_date = datetime(2024, 1, 1)
@@ -342,11 +319,9 @@ def generate_online_sales(products, customers, rows=500000):
         order_date = random_date(start_date, end_date)
 
         unit_price = product["Price"]
-
         unit_cost = product["Cost"]
 
         sales_amount = round(quantity * unit_price, 2)
-
         cost_amount = round(quantity * unit_cost, 2)
 
         discount = round(
@@ -356,42 +331,71 @@ def generate_online_sales(products, customers, rows=500000):
 
         sales.append({
 
+            # =========================
+            # Order Information
+            # =========================
             "OnlineOrderID": f"ON{i:07}",
 
+            # =========================
+            # Date Entity
+            # =========================
             "OrderDate": order_date.date(),
+            "Year": order_date.year,
+            "Quarter": (order_date.month - 1) // 3 + 1,
+            "Month": order_date.month,
+            "Day": order_date.day,
 
+            # =========================
+            # Customer Entity
+            # =========================
             "CustomerID": customer["CustomerID"],
+            "FirstName": customer["FirstName"],
+            "LastName": customer["LastName"],
+            "Gender": customer["Gender"],
+            "BirthDate": customer["BirthDate"],
+            "Email": customer["Email"],
+            "CustomerCountry": customer["Country"],
+            "CustomerCity": customer["City"],
 
+            # =========================
+            # Product Entity
+            # =========================
             "ProductID": product["ProductID"],
+            "ProductCode": product["ProductCode"],
+            "ProductName": product["ProductName"],
+            "Brand": product["Brand"],
+            "Category": product["Category"],
+            "Subcategory": product["Subcategory"],
+            "Color": product["Color"],
+            "Size": product["Size"],
 
+            # =========================
+            # Measures
+            # =========================
             "Quantity": quantity,
-
             "UnitPrice": unit_price,
-
+            "UnitCost": unit_cost,
             "SalesAmount": sales_amount,
-
             "CostAmount": cost_amount,
-
             "DiscountAmount": discount,
 
+            # =========================
+            # Additional Attributes
+            # =========================
             "PaymentMethod": random.choice(PAYMENT_METHODS),
-
             "ShippingType": random.choice(SHIPPING_TYPES),
-
-            "DeliveryCity": customer["City"],
-
-            "DeliveryCountry": customer["Country"],
-
             "CouponCode": random.choice([
                 "",
                 "SAVE10",
                 "WELCOME15",
                 "SPRING20"
             ]),
-
             "SalesChannel": "Online"
 
         })
+
+        if i % 10000 == 0:
+            print(f"Generated {i:,} online sales...")
 
     df = pd.DataFrame(sales)
 
@@ -404,16 +408,14 @@ def generate_online_sales(products, customers, rows=500000):
 
     return df
 
-def generate_store_sales(products, stores, employees, rows=500000):
+def generate_store_sales(products, customers, stores, employees, rows=500000):
 
     products_list = products.to_dict("records")
+    customers_list = customers.to_dict("records")
     stores_list = stores.to_dict("records")
     employees_list = employees.to_dict("records")
 
-    # ------------------------------------
-    # Build employee mapping by store
-    # ------------------------------------
-
+    # Employees grouped by store
     employees_by_store = {}
 
     for employee in employees_list:
@@ -425,8 +427,6 @@ def generate_store_sales(products, stores, employees, rows=500000):
 
         employees_by_store[store_id].append(employee)
 
-    # ------------------------------------
-
     sales = []
 
     start_date = datetime(2024, 1, 1)
@@ -434,10 +434,9 @@ def generate_store_sales(products, stores, employees, rows=500000):
 
     for i in range(1, rows + 1):
 
+        customer = random.choice(customers_list)
         store = random.choice(stores_list)
-
         product = random.choice(products_list)
-
         employee = random.choice(
             employees_by_store[store["StoreID"]]
         )
@@ -447,49 +446,102 @@ def generate_store_sales(products, stores, employees, rows=500000):
         sale_date = random_date(start_date, end_date)
 
         unit_price = product["Price"]
-
         unit_cost = product["Cost"]
 
         sales_amount = round(quantity * unit_price, 2)
-
         cost_amount = round(quantity * unit_cost, 2)
 
-        if i % 10000 == 0:
-            print(f"Generated {i:,} store sales...")
+        discount = round(
+            sales_amount * random.uniform(0, 0.25),
+            2
+        )
 
         sales.append({
 
+            # ===================================
+            # Transaction
+            # ===================================
+
             "ReceiptID": f"POS{i:07}",
 
+            # ===================================
+            # Date Entity
+            # ===================================
+
             "SaleDate": sale_date.date(),
+            "Year": sale_date.year,
+            "Quarter": (sale_date.month - 1) // 3 + 1,
+            "Month": sale_date.month,
+            "Day": sale_date.day,
+
+            # ===================================
+            # Customer Entity
+            # ===================================
+
+            "CustomerID": customer["CustomerID"],
+            "FirstName": customer["FirstName"],
+            "LastName": customer["LastName"],
+            "Gender": customer["Gender"],
+            "BirthDate": customer["BirthDate"],
+            "Email": customer["Email"],
+            "CustomerCountry": customer["Country"],
+            "CustomerCity": customer["City"],
+
+            # ===================================
+            # Store Entity
+            # ===================================
 
             "StoreID": store["StoreID"],
+            "StoreName": store["StoreName"],
+            "StoreAddress": store["Address"],
+            "StoreCountry": store["Country"],
+            "StoreCity": store["City"],
+
+            # ===================================
+            # Employee Entity
+            # ===================================
 
             "EmployeeID": employee["EmployeeID"],
+            "EmployeeName": employee["EmployeeName"],
+            "Position": employee["Position"],
 
-            "ProductCode": product["ProductID"],
+            # ===================================
+            # Product Entity
+            # ===================================
+
+            "ProductID": product["ProductID"],
+            "ProductCode": product["ProductCode"],
+            "ProductName": product["ProductName"],
+            "Brand": product["Brand"],
+            "Category": product["Category"],
+            "Subcategory": product["Subcategory"],
+            "Color": product["Color"],
+            "Size": product["Size"],
+
+            # ===================================
+            # Measures
+            # ===================================
 
             "Quantity": quantity,
-
             "UnitPrice": unit_price,
-
+            "UnitCost": unit_cost,
             "SalesAmount": sales_amount,
-
             "CostAmount": cost_amount,
+            "DiscountAmount": discount,
+
+            # ===================================
+            # Additional Attributes
+            # ===================================
 
             "RegisterNumber": random.randint(1, 10),
-
             "Shift": random.choice(SHIFTS),
-
-            "StoreAddress": store["Address"],
-
-            "City": store["City"],
-
-            "Country": store["Country"],
-
+            "PaymentMethod": random.choice(PAYMENT_METHODS),
             "SalesChannel": "Store"
 
         })
+
+        if i % 10000 == 0:
+            print(f"Generated {i:,} store sales...")
 
     df = pd.DataFrame(sales)
 
@@ -504,6 +556,7 @@ def generate_store_sales(products, stores, employees, rows=500000):
 
 if __name__ == "__main__":
 
+    # Generate master data (kept in memory only)
     products = create_products()
 
     customers = create_customers()
@@ -512,14 +565,17 @@ if __name__ == "__main__":
 
     employees = create_employees(stores)
 
+    # Generate Online source system
     online_sales = generate_online_sales(
         products,
         customers,
         rows=500000
     )
 
+    # Generate Store (POS) source system
     store_sales = generate_store_sales(
         products,
+        customers,
         stores,
         employees,
         rows=500000
