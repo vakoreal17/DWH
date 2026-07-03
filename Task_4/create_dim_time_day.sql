@@ -1,6 +1,8 @@
 -- DIM_TIME_DAY
 -- Creates and populates the Date Dimension
 
+CREATE SCHEMA IF NOT EXISTS BL_DM;
+
 DROP TABLE IF EXISTS BL_DM.DIM_TIME_DAY;
 
 CREATE TABLE BL_DM.DIM_TIME_DAY
@@ -47,3 +49,5 @@ FROM generate_series(
 		DATE '2025-12-31',
         INTERVAL '1 day'
      ) AS dt;
+     
+COMMIT; 
