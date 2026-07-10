@@ -1,0 +1,53 @@
+-- DIM_TIME_DAY
+-- Creates and populates the Date Dimension
+
+CREATE SCHEMA IF NOT EXISTS BL_DM;
+
+DROP TABLE IF EXISTS BL_DM.DIM_TIME_DAY;
+
+CREATE TABLE BL_DM.DIM_TIME_DAY
+(
+    DATE_SURR_ID    BIGINT PRIMARY KEY,
+    EVENT_DT        DATE NOT NULL,
+    DAY             INTEGER NOT NULL,
+    MONTH           INTEGER NOT NULL,
+    MONTH_NAME      VARCHAR(20) NOT NULL,
+    QUARTER         INTEGER NOT NULL,
+    YEAR            INTEGER NOT NULL,
+    DAY_OF_WEEK     INTEGER NOT NULL,
+    WEEKEND_FLAG    CHAR(1) NOT NULL
+);
+
+INSERT INTO BL_DM.DIM_TIME_DAY
+(
+    DATE_SURR_ID,
+    EVENT_DT,
+    DAY,
+    MONTH,
+    MONTH_NAME,
+    QUARTER,
+    YEAR,
+    DAY_OF_WEEK,
+    WEEKEND_FLAG
+)
+SELECT
+    ROW_NUMBER() OVER (ORDER BY dt) AS DATE_SURR_ID,
+    dt AS EVENT_DT,
+    EXTRACT(DAY FROM dt)::INT,
+    EXTRACT(MONTH FROM dt)::INT,
+    TO_CHAR(dt, 'Month'),
+    EXTRACT(QUARTER FROM dt)::INT,
+    EXTRACT(YEAR FROM dt)::INT,
+    EXTRACT(ISODOW FROM dt)::INT,
+    CASE
+        WHEN EXTRACT(ISODOW FROM dt) IN (6,7)
+        THEN 'Y'
+        ELSE 'N'
+    END
+FROM generate_series(
+        DATE '2024-01-01',
+		DATE '2025-12-31',
+        INTERVAL '1 day'
+     ) AS dt;
+     
+COMMIT; 
