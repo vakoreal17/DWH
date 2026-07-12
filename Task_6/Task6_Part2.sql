@@ -73,11 +73,12 @@ FROM
 
         'CUSTOMERS' AS source_entity,
 
-        customerid::varchar AS geo_src_id
+        COALESCE(customercountry,'n.a.') || '_' ||
+		COALESCE(customercity,'n.a.') AS geo_src_id
 
     FROM sa_online_sales.src_online_sales
 
-    UNION
+    UNION ALL
 
     -------------------------------------------------
     -- Store Customers
@@ -93,11 +94,12 @@ FROM
 
         'CUSTOMERS',
 
-        customerid::varchar
+        COALESCE(customercountry,'n.a.') || '_' ||
+		COALESCE(customercity,'n.a.')
 
     FROM sa_store_sales.src_store_sales
 
-    UNION
+    UNION ALL
 
     -------------------------------------------------
     -- Stores
@@ -113,7 +115,8 @@ FROM
 
         'STORES',
 
-        storeid::varchar
+        COALESCE(storecountry,'n.a.') || '_' ||
+		COALESCE(storecity,'n.a.')
 
     FROM sa_store_sales.src_store_sales
 
@@ -124,7 +127,8 @@ WHERE NOT EXISTS
     SELECT 1
     FROM bl_3nf.ce_geographies g
     WHERE g.source_system = src.source_system
-      AND g.geo_src_id = src.geo_src_id
+		AND g.source_entity = src.source_entity
+		AND g.geo_src_id = src.geo_src_id
 );
 
 COMMIT;
@@ -473,7 +477,7 @@ SELECT
 
     src.source_system,
 
-    'PRODUCTS',
+    src.source_entity,
 
     CURRENT_DATE,
 
@@ -505,7 +509,9 @@ FROM
 
         unitcost AS unit_cost,
 
-        'ONLINE' AS source_system
+        'ONLINE' AS source_system,
+        
+        'PRODUCTS' AS source_entity
 
     FROM sa_online_sales.src_online_sales
 
@@ -534,22 +540,29 @@ FROM
         unitcost,
 
         'STORE'
+        
+        'PRODUCTS'
 
     FROM sa_store_sales.src_store_sales
 
 ) src
 
-JOIN bl_3nf.ce_products_scd old
-
-ON old.product_src_id = src.product_src_id
-
-AND old.source_system = src.source_system
-
-WHERE
-
-old.is_active = FALSE
-
-AND old.end_dt = CURRENT_DATE - INTERVAL '1 day';
+WHERE NOT EXISTS
+(
+    SELECT 1
+    FROM bl_3nf.ce_products_scd p
+    WHERE p.product_src_id = src.product_src_id
+      AND p.source_system = src.source_system
+      AND p.source_entity = 'PRODUCTS'
+      AND p.is_active = TRUE
+      AND COALESCE(p.product_name,'') = COALESCE(src.product_name,'')
+      AND COALESCE(p.brand,'') = COALESCE(src.brand,'')
+      AND COALESCE(p.category,'') = COALESCE(src.category,'')
+      AND COALESCE(p.subcategory,'') = COALESCE(src.subcategory,'')
+      AND COALESCE(p.color,'') = COALESCE(src.color,'')
+      AND COALESCE(p.size,'') = COALESCE(src.size,'')
+      AND COALESCE(p.unit_price,0) = COALESCE(src.unit_price,0)
+      AND COALESCE(p.unit_cost,0) = COALESCE(src.unit_cost,0)
 
 COMMIT;
 
@@ -612,6 +625,7 @@ WHERE NOT EXISTS
     FROM bl_3nf.ce_stores s
     WHERE s.store_src_id = src.store_src_id
       AND s.source_system = src.source_system
+      AND s.source_entity = src.source_entity
 );
 
 COMMIT;
@@ -671,6 +685,7 @@ LEFT JOIN bl_3nf.ce_stores st
 
        ON st.store_src_id = src.store_src_id
       AND st.source_system = 'STORE'
+      AND st.source_entity = 'STORES'
 
 WHERE NOT EXISTS
 (
@@ -678,6 +693,7 @@ WHERE NOT EXISTS
     FROM bl_3nf.ce_employees e
     WHERE e.employee_src_id = src.employee_src_id
       AND e.source_system = src.source_system
+      AND e.source_entity = src.source_entity
 );
 
 COMMIT;
@@ -686,6 +702,7 @@ INSERT INTO bl_3nf.ce_sales
 (
     sales_src_id,
     source_system,
+    source_entity,
     customer_id,
     product_id,
     store_id,
@@ -705,6 +722,7 @@ INSERT INTO bl_3nf.ce_sales
 SELECT
     src.sales_src_id,
     src.source_system,
+    src.source_entity,
     c.customer_id,
     p.product_id,
     st.store_id,
@@ -728,6 +746,7 @@ FROM
     SELECT
         onlineorderid::VARCHAR AS sales_src_id,
         'ONLINE' AS source_system,
+        'SALES' AS source_entity,
 
         customerid::VARCHAR AS customer_src_id,
         productid::VARCHAR AS product_src_id,
@@ -759,6 +778,7 @@ FROM
     SELECT
         receiptid::VARCHAR,
         'STORE',
+        'SALES',
 
         customerid::VARCHAR,
         productid::VARCHAR,
@@ -787,32 +807,42 @@ FROM
 LEFT JOIN bl_3nf.ce_customers c
        ON c.customer_src_id = src.customer_src_id
       AND c.source_system = src.source_system
+      AND c.source_entity = 'CUSTOMERS'
 
 LEFT JOIN bl_3nf.ce_products_scd p
        ON p.product_src_id = src.product_src_id
       AND p.source_system = src.source_system
+      AND p.source_entity = 'PRODUCTS'
       AND p.is_active = TRUE
 
 LEFT JOIN bl_3nf.ce_stores st
        ON st.store_src_id = src.store_src_id
       AND st.source_system = 'STORE'
+      AND st.source_entity = 'STORES'
 
 LEFT JOIN bl_3nf.ce_employees e
        ON e.employee_src_id = src.employee_src_id
       AND e.source_system = 'STORE'
+      AND e.source_entity = 'EMPLOYEES'
 
 LEFT JOIN bl_3nf.ce_dates d
        ON d.full_date = src.sales_date
 
 LEFT JOIN bl_3nf.ce_geographies g
-       ON g.country = COALESCE(src.country, 'n.a.')
-      AND g.city = COALESCE(src.city, 'n.a.')
-      AND g.source_system =
+		ON g.country = COALESCE(src.country, 'n.a.')
+		AND g.city = COALESCE(src.city, 'n.a.')
+		AND g.source_system =
             CASE
                 WHEN src.source_system = 'ONLINE'
                 THEN 'ONLINE'
                 ELSE 'STORE'
             END
+		AND g.source_entity =
+			CASE
+				WHEN src.store_src_id IS NULL
+				THEN 'CUSTOMERS'
+				ELSE 'STORES'
+			END
 
 WHERE NOT EXISTS
 (
@@ -820,6 +850,7 @@ WHERE NOT EXISTS
     FROM bl_3nf.ce_sales s
     WHERE s.sales_src_id = src.sales_src_id
       AND s.source_system = src.source_system
+      AND s.source_entity = src.source_entity
 );
 
 COMMIT;

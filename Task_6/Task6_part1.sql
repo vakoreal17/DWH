@@ -1,10 +1,7 @@
-DROP SCHEMA IF EXISTS bl_3nf CASCADE;
-
 CREATE SCHEMA IF NOT EXISTS bl_3nf;
 
-DROP TABLE IF EXISTS bl_3nf.ce_dates CASCADE;
 
-CREATE TABLE bl_3nf.ce_dates
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_dates
 (
     date_id     SERIAL PRIMARY KEY,
 
@@ -19,9 +16,8 @@ CREATE TABLE bl_3nf.ce_dates
         UNIQUE(full_date)
 );
 
-DROP TABLE IF EXISTS bl_3nf.ce_geographies CASCADE;
 
-CREATE TABLE bl_3nf.ce_geographies
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_geographies
 (
     geo_id          SERIAL PRIMARY KEY,
 
@@ -39,9 +35,7 @@ CREATE TABLE bl_3nf.ce_geographies
         UNIQUE (source_system, geo_src_id)
 );
 
-DROP TABLE IF EXISTS bl_3nf.ce_customers CASCADE;
-
-CREATE TABLE bl_3nf.ce_customers
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_customers
 (
     customer_id         SERIAL PRIMARY KEY,
 
@@ -70,9 +64,8 @@ CREATE TABLE bl_3nf.ce_customers
         UNIQUE(source_system, customer_src_id)
 );
 
-DROP TABLE IF EXISTS bl_3nf.ce_products_scd CASCADE;
 
-CREATE TABLE bl_3nf.ce_products_scd
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_products_scd
 (
     product_id          SERIAL,
     start_dt            DATE NOT NULL,
@@ -104,9 +97,7 @@ CREATE TABLE bl_3nf.ce_products_scd
         PRIMARY KEY(product_id,start_dt)
 );
 
-DROP TABLE IF EXISTS bl_3nf.ce_stores CASCADE;
-
-CREATE TABLE bl_3nf.ce_stores
+CREATE TABLE  IF NOT EXISTS bl_3nf.ce_stores
 (
     store_id            SERIAL PRIMARY KEY,
 
@@ -132,9 +123,7 @@ CREATE TABLE bl_3nf.ce_stores
         UNIQUE(source_system,store_src_id)
 );
 
-DROP TABLE IF EXISTS bl_3nf.ce_employees CASCADE;
-
-CREATE TABLE bl_3nf.ce_employees
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_employees
 (
     employee_id         SERIAL PRIMARY KEY,
 
@@ -162,9 +151,7 @@ CREATE TABLE bl_3nf.ce_employees
         UNIQUE(source_system,employee_src_id)
 );
 
-DROP TABLE IF EXISTS bl_3nf.ce_sales CASCADE;
-
-CREATE TABLE bl_3nf.ce_sales
+CREATE TABLE IF NOT EXISTS bl_3nf.ce_sales
 (
     sales_id            BIGSERIAL PRIMARY KEY,
 
