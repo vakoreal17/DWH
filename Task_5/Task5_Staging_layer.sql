@@ -14,9 +14,8 @@ FOREIGN DATA WRAPPER file_fdw;
 ------------------------------------------------------------
 -- Create Staging Schema
 ------------------------------------------------------------
-DROP SCHEMA IF EXISTS sa_online_sales CASCADE;
 
-CREATE SCHEMA sa_online_sales;
+CREATE SCHEMA if not exists sa_online_sales;
 
 ------------------------------------------------------------
 -- Create External (Foreign) Table
@@ -68,9 +67,8 @@ OPTIONS
     header 'true'
 );
 
-DROP TABLE IF EXISTS sa_online_sales.src_online_sales;
 
-CREATE TABLE sa_online_sales.src_online_sales
+CREATE TABLE if not exists  sa_online_sales.src_online_sales
 (
     onlineorderid      TEXT,
     orderdate          DATE,
@@ -138,9 +136,7 @@ LIMIT 10;
 -- Part 2 Store Sales.
 ------------------------------------------------------------
 
-DROP SCHEMA IF EXISTS sa_store_sales CASCADE;
-
-CREATE SCHEMA sa_store_sales;
+CREATE SCHEMA if not exists sa_store_sales;
 
 CREATE FOREIGN TABLE sa_store_sales.ext_store_sales
 (
@@ -203,9 +199,8 @@ SELECT *
 FROM sa_store_sales.ext_store_sales
 LIMIT 10;
 
-DROP TABLE IF EXISTS sa_store_sales.src_store_sales;
 
-CREATE TABLE sa_store_sales.src_store_sales
+CREATE TABLE if not exists sa_store_sales.src_store_sales
 (
     receiptid          TEXT,
     saledate           DATE,
