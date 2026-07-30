@@ -51,5 +51,4 @@ EXCEPTION
 END;
 $$;
 
-CALL bl_cl.load_dwh();
 

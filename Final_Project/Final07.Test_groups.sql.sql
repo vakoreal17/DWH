@@ -15,12 +15,14 @@ SELECT
     country,
     city,
     source_system,
+    source_entity,
     COUNT(*)
 FROM bl_3nf.ce_geographies
 GROUP BY
     country,
     city,
-    source_system
+    source_system,
+    source_entity
 HAVING COUNT(*) > 1;
 
 -- Customers
@@ -28,11 +30,13 @@ HAVING COUNT(*) > 1;
 SELECT
     customer_src_id,
     source_system,
+    source_entity,
     COUNT(*)
 FROM bl_3nf.ce_customers
 GROUP BY
     customer_src_id,
-    source_system
+    source_system,
+    source_entity
 HAVING COUNT(*) > 1;
 
 -- Employees
@@ -40,22 +44,26 @@ HAVING COUNT(*) > 1;
 SELECT
     employee_src_id,
     source_system,
+    source_entity,
     COUNT(*)
 FROM bl_3nf.ce_employees
 GROUP BY
     employee_src_id,
-    source_system
+    source_system,
+    source_entity
 HAVING COUNT(*) > 1;
 -- Stores
 
 SELECT
     store_src_id,
     source_system,
+    source_entity,
     COUNT(*)
 FROM bl_3nf.ce_stores
 GROUP BY
     store_src_id,
-    source_system
+    source_system,
+    source_entity
 HAVING COUNT(*) > 1;
 
 -- sales
@@ -63,11 +71,13 @@ HAVING COUNT(*) > 1;
 SELECT
     sales_src_id,
     source_system,
+    source_entity,
     COUNT(*)
 FROM bl_3nf.ce_sales
 GROUP BY
     sales_src_id,
-    source_system
+    source_system,
+    source_entity
 HAVING COUNT(*) > 1;
 
 -- Dim_Customers
@@ -228,7 +238,7 @@ WHERE NOT EXISTS (
     FROM bl_3nf.ce_geographies g
     WHERE g.country = s.country
       AND g.city = s.city
-      AND g.source_system = 'ONLINE'
+      AND g.source_system = 'CUSTOMERS'
       AND g.source_entity = 'src_online_sales'
 );
 
@@ -243,7 +253,7 @@ WHERE NOT EXISTS (
     FROM bl_3nf.ce_geographies g
     WHERE g.country = s.country
       AND g.city = s.city
-      AND g.source_system = 'STORE'
+      AND g.source_system = 'STORES'
       AND g.source_entity = 'src_store_sales'
 );
 
@@ -251,12 +261,12 @@ WHERE NOT EXISTS (
 
 SELECT COUNT(*) AS missing_dates
 FROM (
-    SELECT DISTINCT orderdate
+    SELECT DISTINCT orderdate AS event_date
     FROM sa_online_sales.src_online_sales
 
     UNION
 
-    SELECT DISTINCT orderdate
+    SELECT DISTINCT saledate AS event_date
     FROM sa_store_sales.src_store_sales
 ) s
 WHERE NOT EXISTS (

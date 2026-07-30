@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS bl_3nf.ce_geographies
     update_dt       TIMESTAMP,
 
     CONSTRAINT uq_ce_geographies
-        UNIQUE (source_system, geo_src_id)
+        UNIQUE (source_system, source_entity, geo_src_id)
 );
 
 CREATE TABLE IF NOT EXISTS bl_3nf.ce_customers
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS bl_3nf.ce_customers
     update_dt           TIMESTAMP,
 
     CONSTRAINT uq_customer
-        UNIQUE(source_system, customer_src_id)
+        UNIQUE(source_system, source_entity, customer_src_id)
 );
 
 
@@ -120,7 +120,7 @@ CREATE TABLE  IF NOT EXISTS bl_3nf.ce_stores
         REFERENCES bl_3nf.ce_geographies(geo_id),
 
     CONSTRAINT uq_store
-        UNIQUE(source_system,store_src_id)
+        UNIQUE(source_system, source_entity, store_src_id)
 );
 
 CREATE TABLE IF NOT EXISTS bl_3nf.ce_employees
@@ -148,7 +148,7 @@ CREATE TABLE IF NOT EXISTS bl_3nf.ce_employees
         REFERENCES bl_3nf.ce_stores(store_id),
 
     CONSTRAINT uq_employee
-        UNIQUE(source_system,employee_src_id)
+        UNIQUE(source_system, source_entity, employee_src_id)
 );
 
 CREATE TABLE IF NOT EXISTS bl_3nf.ce_sales
@@ -214,7 +214,7 @@ CREATE TABLE IF NOT EXISTS bl_3nf.ce_sales
         REFERENCES bl_3nf.ce_geographies(geo_id),
         
     CONSTRAINT uq_sales
-		UNIQUE(source_system, sales_src_id)
+		UNIQUE(source_system, source_entity, sales_src_id)
 );
 
 INSERT INTO bl_3nf.ce_dates

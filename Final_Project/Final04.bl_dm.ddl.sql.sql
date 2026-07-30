@@ -166,58 +166,67 @@ CREATE TABLE IF NOT EXISTS BL_DM.DIM_TIME_DAY
 
 -- FCT_SALES_DD
 
-CREATE TABLE IF NOT EXISTS BL_DM.FCT_SALES_DD
+CREATE TABLE IF NOT EXISTS bl_dm.fct_sales_dd
 (
-    CUSTOMER_SURR_ID     BIGINT NOT NULL,
-	PRODUCT_SURR_ID      BIGINT NOT NULL,
-	STORE_SURR_ID        BIGINT NOT NULL,
-	EMPLOYEE_SURR_ID     BIGINT NOT NULL,
-	DATE_SURR_ID         BIGINT NOT NULL,
+    customer_surr_id     BIGINT NOT NULL,
+    product_surr_id      BIGINT NOT NULL,
+    store_surr_id        BIGINT NOT NULL,
+    employee_surr_id     BIGINT NOT NULL,
+    date_surr_id         BIGINT NOT NULL,
 
-	EVENT_DT             DATE NOT NULL,
+    event_dt             DATE NOT NULL,
 
-	QUANTITY             INTEGER,
-	UNIT_PRICE           DECIMAL(18,2),
-	UNIT_COST            DECIMAL(18,2),
-	SALES_AMOUNT         DECIMAL(18,2),
-	COST_AMOUNT          DECIMAL(18,2),
-	DISCOUNT_AMOUNT      DECIMAL(18,2),
-	PAYMENT_METHOD       VARCHAR(50) NOT NULL,
-	CHANNEL              VARCHAR(20) NOT NULL,
-	PROFIT_AMOUNT        DECIMAL(18,2),
+    quantity             INTEGER,
+    unit_price           NUMERIC,
+    unit_cost            NUMERIC,
+    sales_amount         NUMERIC,
+    cost_amount          NUMERIC,
+    discount_amount      NUMERIC,
+    payment_method       VARCHAR(50),
+    channel              VARCHAR(20),
+    profit_amount        NUMERIC,
 
-	INSERT_DT            DATE NOT NULL,
-	UPDATE_DT            DATE NOT NULL,
+    insert_dt            DATE,
+    update_dt            DATE,
 
-    CONSTRAINT PK_FCT_SALES_DD PRIMARY KEY
-    (
-        CUSTOMER_SURR_ID,
-        PRODUCT_SURR_ID,
-        STORE_SURR_ID,
-        EMPLOYEE_SURR_ID,
-        DATE_SURR_ID
-    ),
+    CONSTRAINT fk_fct_customer
+        FOREIGN KEY (customer_surr_id)
+        REFERENCES bl_dm.dim_customer(customer_surr_id),
 
-    CONSTRAINT FK_FCT_CUSTOMER
-        FOREIGN KEY (CUSTOMER_SURR_ID)
-        REFERENCES BL_DM.DIM_CUSTOMER (CUSTOMER_SURR_ID),
+    CONSTRAINT fk_fct_product
+        FOREIGN KEY (product_surr_id)
+        REFERENCES bl_dm.dim_products_scd(product_surr_id),
 
-    CONSTRAINT FK_FCT_PRODUCT
-        FOREIGN KEY (PRODUCT_SURR_ID)
-        REFERENCES BL_DM.DIM_PRODUCTS_SCD (PRODUCT_SURR_ID),
+    CONSTRAINT fk_fct_store
+        FOREIGN KEY (store_surr_id)
+        REFERENCES bl_dm.dim_store(store_surr_id),
 
-    CONSTRAINT FK_FCT_STORE
-        FOREIGN KEY (STORE_SURR_ID)
-        REFERENCES BL_DM.DIM_STORE (STORE_SURR_ID),
+    CONSTRAINT fk_fct_employee
+        FOREIGN KEY (employee_surr_id)
+        REFERENCES bl_dm.dim_employee(employee_surr_id),
 
-    CONSTRAINT FK_FCT_EMPLOYEE
-        FOREIGN KEY (EMPLOYEE_SURR_ID)
-        REFERENCES BL_DM.DIM_EMPLOYEE (EMPLOYEE_SURR_ID),
+    CONSTRAINT fk_fct_date
+        FOREIGN KEY (date_surr_id)
+        REFERENCES bl_dm.dim_time_day(date_surr_id)
 
-    CONSTRAINT FK_FCT_DATE
-        FOREIGN KEY (DATE_SURR_ID)
-        REFERENCES BL_DM.DIM_TIME_DAY (DATE_SURR_ID)
-);
+)
+PARTITION BY RANGE (event_dt);
+
+CREATE TABLE IF NOT EXISTS bl_dm.fct_sales_dd_default
+PARTITION OF bl_dm.fct_sales_dd
+DEFAULT;
+
+CREATE TABLE IF NOT EXISTS bl_dm.fct_sales_2025_10
+PARTITION OF bl_dm.fct_sales_dd
+FOR VALUES FROM ('2025-10-01') TO ('2025-11-01');
+
+CREATE TABLE IF NOT EXISTS bl_dm.fct_sales_2025_11
+PARTITION OF bl_dm.fct_sales_dd
+FOR VALUES FROM ('2025-11-01') TO ('2025-12-01');
+
+CREATE TABLE IF NOT EXISTS bl_dm.fct_sales_2025_12
+PARTITION OF bl_dm.fct_sales_dd
+FOR VALUES FROM ('2025-12-01') TO ('2026-01-01');
 
 -- ETL
 
@@ -310,7 +319,7 @@ SELECT
     'MANUAL',
     CURRENT_DATE,
     DATE '9999-12-31',
-    TRUE,
+    'Y',
     CURRENT_DATE
 WHERE NOT EXISTS
 (
@@ -422,7 +431,7 @@ SELECT
     0,
     0,
     0,
-    FALSE
+    'Y'
 WHERE NOT EXISTS
 (
     SELECT 1
@@ -432,73 +441,3 @@ WHERE NOT EXISTS
 
 COMMIT;
 
-
--- Partitions 
-
-ALTER TABLE bl_dm.fct_sales_dd
-RENAME TO fct_sales_dd_old;
-
-SELECT COUNT(*)
-FROM bl_dm.fct_sales_dd_old;
-
-CREATE TABLE bl_dm.fct_sales_dd
-(
-    customer_surr_id     BIGINT NOT NULL,
-    product_surr_id      BIGINT NOT NULL,
-    store_surr_id        BIGINT NOT NULL,
-    employee_surr_id     BIGINT NOT NULL,
-    date_surr_id         BIGINT NOT NULL,
-
-    event_dt             DATE NOT NULL,
-
-    quantity             INTEGER,
-    unit_price           NUMERIC,
-    unit_cost            NUMERIC,
-    sales_amount         NUMERIC,
-    cost_amount          NUMERIC,
-    discount_amount      NUMERIC,
-    payment_method       VARCHAR(50),
-    channel              VARCHAR(20),
-    profit_amount        NUMERIC,
-
-    insert_dt            DATE,
-    update_dt            DATE,
-
-    CONSTRAINT fk_fct_customer
-        FOREIGN KEY (customer_surr_id)
-        REFERENCES bl_dm.dim_customer(customer_surr_id),
-
-    CONSTRAINT fk_fct_product
-        FOREIGN KEY (product_surr_id)
-        REFERENCES bl_dm.dim_products_scd(product_surr_id),
-
-    CONSTRAINT fk_fct_store
-        FOREIGN KEY (store_surr_id)
-        REFERENCES bl_dm.dim_store(store_surr_id),
-
-    CONSTRAINT fk_fct_employee
-        FOREIGN KEY (employee_surr_id)
-        REFERENCES bl_dm.dim_employee(employee_surr_id),
-
-    CONSTRAINT fk_fct_date
-        FOREIGN KEY (date_surr_id)
-        REFERENCES bl_dm.dim_time_day(date_surr_id)
-
-)
-PARTITION BY RANGE (event_dt);
-
-CREATE TABLE bl_dm.fct_sales_dd_default
-PARTITION OF bl_dm.fct_sales_dd
-DEFAULT;
-
-CREATE TABLE bl_dm.fct_sales_2025_10
-PARTITION OF bl_dm.fct_sales_dd
-FOR VALUES FROM ('2025-10-01') TO ('2025-11-01');
-
-CREATE TABLE bl_dm.fct_sales_2025_11
-PARTITION OF bl_dm.fct_sales_dd
-FOR VALUES FROM ('2025-11-01') TO ('2025-12-01');
-
-CREATE TABLE bl_dm.fct_sales_2025_12
-PARTITION OF bl_dm.fct_sales_dd
-FOR VALUES FROM ('2025-12-01') TO ('2026-01-01');

@@ -78,8 +78,6 @@ $$;
 
 
 
-
-
 CREATE OR REPLACE PROCEDURE bl_cl.load_ce_geographies()
 LANGUAGE plpgsql
 AS
@@ -824,6 +822,200 @@ END;
 $$;
 
 
+CREATE OR REPLACE PROCEDURE bl_cl.load_ce_sales()
+LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    v_rows_affected INTEGER := 0;
+    v_inserted INTEGER;
+BEGIN
+INSERT INTO bl_3nf.ce_sales
+(
+    customer_id,
+    product_id,
+    store_id,
+    employee_id,
+    date_id,
+    geo_id,
+    quantity,
+    unit_price,
+    unit_cost,
+    sales_amount,
+    cost_amount,
+    discount_amount,
+    sales_src_id,
+    source_system,
+    source_entity,
+    payment_method,
+    channel,
+    insert_dt,
+    update_dt
+)
+SELECT
+    c.customer_id,
+    p.product_id,
+    -1,
+    NULL,
+    d.date_id,
+    g.geo_id,
+    s.quantity,
+    s.unitprice,
+    s.unitcost,
+    s.salesamount,
+    s.costamount,
+    s.discountamount,
+    s.onlineorderid,
+    'ONLINE',
+    'src_online_sales',
+    s.paymentmethod,
+    s.saleschannel,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+FROM sa_online_sales.src_online_sales s
+
+JOIN bl_3nf.ce_customers c
+    ON c.customer_src_id = s.customerid
+   AND c.source_system = 'ONLINE'
+   AND c.source_entity = 'src_online_sales'
+
+JOIN bl_3nf.ce_products_scd p
+    ON p.product_src_id = s.productid
+   AND p.source_system = 'ONLINE'
+   AND p.source_entity = 'src_online_sales'
+   AND p.is_active = TRUE
+
+JOIN bl_3nf.ce_dates d
+    ON d.full_date = s.orderdate
+
+JOIN bl_3nf.ce_geographies g
+    ON g.city = s.customercity
+   AND g.country = s.customercountry
+   AND g.source_system = 'CUSTOMERS'
+   
+
+WHERE NOT EXISTS
+(
+    SELECT 1
+    FROM bl_3nf.ce_sales cs
+    WHERE cs.sales_src_id = s.onlineorderid
+      AND cs.source_system = 'ONLINE'
+      AND cs.source_entity = 'src_online_sales'
+);
+
+GET DIAGNOSTICS v_inserted = ROW_COUNT;
+v_rows_affected := v_rows_affected + v_inserted;
+
+INSERT INTO bl_3nf.ce_sales
+(
+    customer_id,
+    product_id,
+    store_id,
+    employee_id,
+    date_id,
+    geo_id,
+    quantity,
+    unit_price,
+    unit_cost,
+    sales_amount,
+    cost_amount,
+    discount_amount,
+    sales_src_id,
+    source_system,
+    source_entity,
+    payment_method,
+    channel,
+    insert_dt,
+    update_dt
+)
+SELECT
+    c.customer_id,
+    p.product_id,
+    st.store_id,
+    e.employee_id,
+    d.date_id,
+    g.geo_id,
+    s.quantity,
+    s.unitprice,
+    s.unitcost,
+    s.salesamount,
+    s.costamount,
+    s.discountamount,
+    s.receiptid,
+    'STORE',
+    'src_store_sales',
+    s.paymentmethod,
+    s.saleschannel,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+FROM sa_store_sales.src_store_sales s
+
+JOIN bl_3nf.ce_customers c
+    ON c.customer_src_id = s.customerid
+   AND c.source_system = 'STORE'
+   AND c.source_entity = 'src_store_sales'
+
+JOIN bl_3nf.ce_products_scd p
+    ON p.product_src_id = s.productid
+   AND p.source_system = 'STORE'
+   AND p.source_entity = 'src_store_sales'
+   AND p.is_active = TRUE
+
+JOIN bl_3nf.ce_stores st
+    ON st.store_src_id = s.storeid
+    AND st.source_system = 'STORE'
+    AND st.source_entity = 'src_store_sales'
+
+LEFT JOIN bl_3nf.ce_employees e
+    ON e.employee_src_id = s.employeeid
+    AND e.source_system = 'STORE'
+    AND e.source_entity = 'src_store_sales'
+
+JOIN bl_3nf.ce_dates d
+    ON d.full_date = s.saledate
+
+JOIN bl_3nf.ce_geographies g
+    ON g.city = s.storecity
+   AND g.country = s.storecountry
+   AND g.source_system = 'STORES'
+
+WHERE NOT EXISTS
+(
+    SELECT 1
+    FROM bl_3nf.ce_sales cs
+    WHERE cs.sales_src_id = s.receiptid
+      AND cs.source_system = 'STORE'
+      AND cs.source_entity = 'src_store_sales'
+);
+
+GET DIAGNOSTICS v_inserted = ROW_COUNT;
+v_rows_affected := v_rows_affected + v_inserted;
+
+    RAISE NOTICE 'Loading CE_SALES...';
+
+    CALL bl_cl.log_etl
+    (
+        'load_ce_sales',
+        v_rows_affected,
+        'CE_SALES loaded successfully.'
+    );
+
+EXCEPTION
+    WHEN OTHERS THEN
+
+        CALL bl_cl.log_etl
+        (
+            'load_ce_sales',
+            0,
+            SQLERRM
+        );
+
+        RAISE;
+
+END;
+$$;
+
+
 -- Task 2 Logging table
 
 CREATE SEQUENCE IF NOT EXISTS bl_cl.seq_etl_log
@@ -894,9 +1086,6 @@ EXCEPTION
 
 END;
 $$;
-
-CALL bl_cl.load_ce_customers();
-
 
 -- Privileges
 GRANT USAGE ON SCHEMA bl_3nf TO bl_cl;

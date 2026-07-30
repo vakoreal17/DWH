@@ -25,79 +25,6 @@ ALTER TABLE bl_dm.dim_customer
 ADD CONSTRAINT uk_dim_customer_customer_src_id
 UNIQUE(customer_src_id);
 
-CREATE OR REPLACE PROCEDURE bl_cl.load_dim_customer()
-LANGUAGE plpgsql
-AS
-$$
-BEGIN
-
-    INSERT INTO bl_dm.dim_customer
-    (
-        customer_surr_id,
-        customer_src_id,
-        first_name,
-        last_name,
-        gender,
-        birth_date,
-        email,
-        phone,
-        country_src_id,
-        country,
-        city_src_id,
-        city,
-        source_system,
-        source_entity,
-        insert_dt,
-        update_dt
-    )
-
-    SELECT
-        nextval('bl_dm.seq_dim_customer_surr_id'),
-        c.customer_src_id,
-        c.first_name,
-        c.last_name,
-        c.gender,
-        c.birth_date,
-        c.email,
-        'n.a.',
-        g.geo_src_id,
-        c.country,
-        g.geo_src_id,
-        c.city,
-        c.source_system,
-        c.source_entity,
-        CURRENT_DATE,
-        CURRENT_DATE
-
-    FROM bl_3nf.ce_customers c
-
-    LEFT JOIN bl_3nf.ce_geographies g
-           ON c.country = g.country
-          AND c.city = g.city
-
-    WHERE c.customer_src_id <> -1
-
-    ON CONFLICT (customer_src_id)
-    DO UPDATE
-    SET
-        first_name = EXCLUDED.first_name,
-        last_name = EXCLUDED.last_name,
-        gender = EXCLUDED.gender,
-        birth_date = EXCLUDED.birth_date,
-        email = EXCLUDED.email,
-        phone = EXCLUDED.phone,
-        country_src_id = EXCLUDED.country_src_id,
-        country = EXCLUDED.country,
-        city_src_id = EXCLUDED.city_src_id,
-        city = EXCLUDED.city,
-        update_dt = CURRENT_DATE;
-
-END;
-$$;
-
-ALTER TABLE bl_dm.dim_customer
-ADD CONSTRAINT uk_dim_customer_customer_src_id
-UNIQUE (customer_src_id);
 
 CREATE OR REPLACE PROCEDURE bl_cl.load_dim_customer()
 LANGUAGE plpgsql
@@ -138,7 +65,7 @@ BEGIN
         ) g
           ON c.country = g.country
          AND c.city = g.city
-        WHERE c.customer_src_id <> '-1'
+        WHERE c.customer_src_id <> -1
         ORDER BY c.customer_src_id, c.customer_id
     ) AS src
 
@@ -220,8 +147,6 @@ EXCEPTION
         RAISE;
 END;
 $$;
-
-CALL bl_cl.load_dim_customer();
 
 CREATE SEQUENCE IF NOT EXISTS bl_dm.seq_dim_employee_surr_id
 START WITH 1
@@ -372,8 +297,6 @@ EXCEPTION
 END;
 $$;
 
-CALL bl_cl.load_dim_employee();
-
 
 CREATE SEQUENCE IF NOT EXISTS bl_dm.seq_dim_store_surr_id
 START WITH 1
@@ -509,15 +432,6 @@ EXCEPTION
 END;
 $$;
 
-CALL bl_cl.load_dim_store();
-
-SELECT COUNT(*)
-FROM bl_dm.dim_store;
-
-SELECT *
-FROM bl_cl.etl_log
-WHERE procedure_name='load_dim_store'
-ORDER BY log_id DESC;
 
 -- Dim_time_day
 
@@ -630,9 +544,6 @@ EXCEPTION
         RAISE;
 END;
 $$;
-
-CALL bl_cl.load_dim_time_day();
-
 
 -- dim_products_scd
 
@@ -803,14 +714,7 @@ END;
 $$;
 
 
-CALL bl_cl.load_dim_products_scd();
-
-
 -- Fact table
-
-SELECT *
-FROM bl_3nf.ce_sales
-LIMIT 5;
 
 
 CREATE TYPE bl_cl.sale_fact_rec AS
@@ -961,8 +865,6 @@ EXCEPTION
 END;
 $$;
 
-CALL bl_cl.load_fct_sales_dd();
-
 -- Procedure: bl_cl.validate_dm_load()
 
 CREATE OR REPLACE PROCEDURE bl_cl.validate_dm_load
@@ -991,270 +893,6 @@ BEGIN
     SELECT ''FCT_SALES_DD'',     COUNT(*) FROM bl_dm.fct_sales_dd
     ORDER BY table_name
     ';
-
-END;
-$$;
-
-BEGIN;
-
-CALL bl_cl.validate_dm_load('result');
-
-FETCH ALL FROM result;
-
-COMMIT;
-
-
-SELECT
-    product_src_id,
-    product_name,
-    unit_price,
-    unit_cost,
-    color,
-    category
-FROM bl_3nf.ce_products_scd
-LIMIT 10;
-
-SELECT *
-FROM bl_3nf.ce_products_scd
-WHERE product_src_id = 'P00001';
-
-SELECT
-    product_src_id,
-    product_name,
-    unit_price,
-    start_dt,
-    end_dt,
-    is_active
-FROM bl_dm.dim_products_scd
-WHERE product_src_id = 'P00001';
-
-SELECT *
-FROM bl_3nf.ce_products_scd
-WHERE product_src_id IN
-(
-    'P00169',
-    'P00479',
-    'P00426',
-    'P00038',
-    'P00142'
-)
-AND source_system = 'ONLINE'
-ORDER BY product_src_id;
-
-SELECT
-    product_src_id,
-    product_code,
-    product_name,
-    brand,
-    category,
-    subcategory,
-    color,
-    size,
-    unit_price,
-    unit_cost,
-    start_dt,
-    end_dt,
-    is_active
-FROM bl_dm.dim_products_scd
-WHERE product_src_id IN
-(
-    'P00169',
-    'P00479',
-    'P00426',
-    'P00038',
-    'P00142'
-)
-ORDER BY product_src_id, start_dt;
-
-
-CALL bl_cl.load_dim_employee();
-
-
-CREATE OR REPLACE PROCEDURE bl_cl.load_ce_sales()
-LANGUAGE plpgsql
-AS
-$$
-DECLARE
-    v_rows_affected INTEGER := 0;
-    v_inserted INTEGER;
-BEGIN
-INSERT INTO bl_3nf.ce_sales
-(
-    customer_id,
-    product_id,
-    store_id,
-    employee_id,
-    date_id,
-    geo_id,
-    quantity,
-    unit_price,
-    unit_cost,
-    sales_amount,
-    cost_amount,
-    discount_amount,
-    sales_src_id,
-    source_system,
-    source_entity,
-    payment_method,
-    channel,
-    insert_dt,
-    update_dt
-)
-SELECT
-    c.customer_id,
-    p.product_id,
-    -1,
-    NULL,
-    d.date_id,
-    g.geo_id,
-    s.quantity,
-    s.unitprice,
-    s.unitcost,
-    s.salesamount,
-    s.costamount,
-    s.discountamount,
-    s.onlineorderid,
-    'ONLINE',
-    'src_online_sales',
-    s.paymentmethod,
-    s.saleschannel,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
-FROM sa_online_sales.src_online_sales s
-
-JOIN bl_3nf.ce_customers c
-    ON c.customer_src_id = s.customerid
-   AND c.source_system = 'ONLINE'
-   AND c.source_entity = 'src_online_sales'
-
-JOIN bl_3nf.ce_products_scd p
-    ON p.product_src_id = s.productid
-   AND p.source_system = 'ONLINE'
-   AND p.source_entity = 'src_online_sales'
-   AND p.is_active = TRUE
-
-JOIN bl_3nf.ce_dates d
-    ON d.full_date = s.orderdate
-
-JOIN bl_3nf.ce_geographies g
-    ON g.city = s.customercity
-   AND g.country = s.customercountry
-   AND g.source_system = 'CUSTOMERS'
-   
-
-WHERE NOT EXISTS
-(
-    SELECT 1
-    FROM bl_3nf.ce_sales cs
-    WHERE cs.sales_src_id = s.onlineorderid
-      AND cs.source_system = 'ONLINE'
-      AND cs.source_entity = 'src_online_sales'
-);
-
-GET DIAGNOSTICS v_inserted = ROW_COUNT;
-v_rows_affected := v_rows_affected + v_inserted;
-
-INSERT INTO bl_3nf.ce_sales
-(
-    customer_id,
-    product_id,
-    store_id,
-    employee_id,
-    date_id,
-    geo_id,
-    quantity,
-    unit_price,
-    unit_cost,
-    sales_amount,
-    cost_amount,
-    discount_amount,
-    sales_src_id,
-    source_system,
-    source_entity,
-    payment_method,
-    channel,
-    insert_dt,
-    update_dt
-)
-SELECT
-    c.customer_id,
-    p.product_id,
-    st.store_id,
-    e.employee_id,
-    d.date_id,
-    g.geo_id,
-    s.quantity,
-    s.unitprice,
-    s.unitcost,
-    s.salesamount,
-    s.costamount,
-    s.discountamount,
-    s.receiptid,
-    'STORE',
-    'src_store_sales',
-    s.paymentmethod,
-    s.saleschannel,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
-FROM sa_store_sales.src_store_sales s
-
-JOIN bl_3nf.ce_customers c
-    ON c.customer_src_id = s.customerid
-   AND c.source_system = 'STORE'
-   AND c.source_entity = 'src_store_sales'
-
-JOIN bl_3nf.ce_products_scd p
-    ON p.product_src_id = s.productid
-   AND p.source_system = 'STORE'
-   AND p.source_entity = 'src_store_sales'
-   AND p.is_active = TRUE
-
-JOIN bl_3nf.ce_stores st
-    ON st.store_src_id = s.storeid
-
-LEFT JOIN bl_3nf.ce_employees e
-    ON e.employee_src_id = s.employeeid
-
-JOIN bl_3nf.ce_dates d
-    ON d.full_date = s.saledate
-
-JOIN bl_3nf.ce_geographies g
-    ON g.city = s.storecity
-   AND g.country = s.storecountry
-   AND g.source_system = 'STORES'
-
-WHERE NOT EXISTS
-(
-    SELECT 1
-    FROM bl_3nf.ce_sales cs
-    WHERE cs.sales_src_id = s.receiptid
-      AND cs.source_system = 'STORE'
-      AND cs.source_entity = 'src_store_sales'
-);
-
-GET DIAGNOSTICS v_inserted = ROW_COUNT;
-v_rows_affected := v_rows_affected + v_inserted;
-
-    RAISE NOTICE 'Loading CE_SALES...';
-
-    CALL bl_cl.log_etl
-    (
-        'load_ce_sales',
-        v_rows_affected,
-        'CE_SALES loaded successfully.'
-    );
-
-EXCEPTION
-    WHEN OTHERS THEN
-
-        CALL bl_cl.log_etl
-        (
-            'load_ce_sales',
-            0,
-            SQLERRM
-        );
-
-        RAISE;
 
 END;
 $$;
@@ -1288,26 +926,6 @@ TO bl_cl;
 
 ---------
 
-CALL bl_cl.load_ce_sales();
-
-SELECT COUNT(*)
-FROM bl_3nf.ce_sales;
-
-SELECT *
-FROM bl_cl.etl_log
-WHERE procedure_name = 'load_ce_sales'
-ORDER BY log_id DESC
-LIMIT 1;
-
-SELECT *
-FROM bl_cl.etl_log
-WHERE procedure_name = 'load_ce_sales'
-ORDER BY log_id DESC
-LIMIT 2;
-
-SELECT COUNT(*)
-FROM bl_dm.fct_sales_dd_old;
-
 
 CREATE OR REPLACE PROCEDURE bl_cl.manage_fct_sales_partitions()
 LANGUAGE plpgsql
@@ -1326,6 +944,4 @@ BEGIN
 
 END;
 $$;
-
-CALL bl_cl.manage_fct_sales_partitions();
 
