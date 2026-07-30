@@ -132,7 +132,9 @@ CREATE TABLE if not exists  sa_online_sales.src_online_sales
 INSERT INTO sa_online_sales.src_online_sales
 SELECT DISTINCT e.*
 FROM sa_online_sales.ext_online_sales e
-WHERE NOT EXISTS (
+WHERE e.onlineorderid IS NOT NULL
+  AND NOT EXISTS
+(
     SELECT 1
     FROM sa_online_sales.src_online_sales s
     WHERE s.onlineorderid = e.onlineorderid
@@ -288,7 +290,9 @@ CREATE TABLE if not exists sa_store_sales.src_store_sales
 INSERT INTO sa_store_sales.src_store_sales
 SELECT DISTINCT e.*
 FROM sa_store_sales.ext_store_sales e
-WHERE NOT EXISTS (
+WHERE e.receiptid IS NOT NULL
+  AND NOT EXISTS
+(
     SELECT 1
     FROM sa_store_sales.src_store_sales s
     WHERE s.receiptid = e.receiptid

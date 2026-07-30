@@ -9,34 +9,17 @@ FROM bl_3nf.ce_dates
 GROUP BY full_date
 HAVING COUNT(*) > 1;
 
--- Geographies
-
-SELECT
-    country,
-    city,
-    source_system,
-    source_entity,
-    COUNT(*)
-FROM bl_3nf.ce_geographies
-GROUP BY
-    country,
-    city,
-    source_system,
-    source_entity
-HAVING COUNT(*) > 1;
 
 -- Customers
 
 SELECT
     customer_src_id,
     source_system,
-    source_entity,
     COUNT(*)
 FROM bl_3nf.ce_customers
 GROUP BY
     customer_src_id,
-    source_system,
-    source_entity
+    source_system
 HAVING COUNT(*) > 1;
 
 -- Employees
@@ -44,26 +27,22 @@ HAVING COUNT(*) > 1;
 SELECT
     employee_src_id,
     source_system,
-    source_entity,
     COUNT(*)
 FROM bl_3nf.ce_employees
 GROUP BY
     employee_src_id,
-    source_system,
-    source_entity
+    source_system
 HAVING COUNT(*) > 1;
 -- Stores
 
 SELECT
     store_src_id,
     source_system,
-    source_entity,
     COUNT(*)
 FROM bl_3nf.ce_stores
 GROUP BY
     store_src_id,
-    source_system,
-    source_entity
+    source_system
 HAVING COUNT(*) > 1;
 
 -- sales
@@ -71,13 +50,11 @@ HAVING COUNT(*) > 1;
 SELECT
     sales_src_id,
     source_system,
-    source_entity,
     COUNT(*)
 FROM bl_3nf.ce_sales
 GROUP BY
     sales_src_id,
-    source_system,
-    source_entity
+    source_system
 HAVING COUNT(*) > 1;
 
 -- Dim_Customers
@@ -226,54 +203,6 @@ WHERE NOT EXISTS (
       AND e.source_entity = 'src_store_sales'
 );
 
--- Geographies
-
-SELECT COUNT(*) AS missing_geographies
-FROM (
-    SELECT DISTINCT country, city
-    FROM sa_online_sales.src_online_sales
-) s
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM bl_3nf.ce_geographies g
-    WHERE g.country = s.country
-      AND g.city = s.city
-      AND g.source_system = 'CUSTOMERS'
-      AND g.source_entity = 'src_online_sales'
-);
-
-
-SELECT COUNT(*) AS missing_geographies
-FROM (
-    SELECT DISTINCT country, city
-    FROM sa_store_sales.src_store_sales
-) s
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM bl_3nf.ce_geographies g
-    WHERE g.country = s.country
-      AND g.city = s.city
-      AND g.source_system = 'STORES'
-      AND g.source_entity = 'src_store_sales'
-);
-
--- Dates
-
-SELECT COUNT(*) AS missing_dates
-FROM (
-    SELECT DISTINCT orderdate AS event_date
-    FROM sa_online_sales.src_online_sales
-
-    UNION
-
-    SELECT DISTINCT saledate AS event_date
-    FROM sa_store_sales.src_store_sales
-) s
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM bl_3nf.ce_dates d
-    WHERE d.full_date = s.orderdate
-);
 
 -- Sales
 

@@ -401,7 +401,8 @@ begin
 			size,
 			unitprice AS unit_price,
 			unitcost AS unit_cost,
-            'ONLINE' AS source_system
+            'ONLINE' AS source_system,
+			'PRODUCTS' AS source_entity
         FROM sa_online_sales.src_online_sales
 
         UNION
@@ -417,7 +418,8 @@ begin
             size,
             unitprice,
             unitcost,
-            'STORE'
+            'STORE',
+			'PRODUCTS'
         FROM sa_store_sales.src_store_sales
     ) src
 
@@ -466,7 +468,7 @@ begin
 		    src.unit_price,
 		    src.unit_cost,
 		    src.source_system,
-		    'PRODUCTS' AS source_entity,
+		    src.source_entity,
 		    CURRENT_DATE,
 		    DATE '9999-12-31',
 		    TRUE
@@ -483,7 +485,8 @@ begin
 		        size,
 		        unitprice AS unit_price,
 		        unitcost AS unit_cost,
-		        'ONLINE' AS source_system
+		        'ONLINE' AS source_system,
+				'PRODUCTS' AS source_entity
 		    FROM sa_online_sales.src_online_sales
 		
 		    UNION
@@ -499,7 +502,8 @@ begin
 		        size,
 		        unitprice,
 		        unitcost,
-		        'STORE'
+		        'STORE',
+				'PRODUCTS'
 		    FROM sa_store_sales.src_store_sales
 		) src
 		WHERE NOT EXISTS
@@ -571,17 +575,17 @@ BEGIN
 
     FROM
     (
-        SELECT DISTINCT
+        SELECT DISTINCT ON (storeid)
 
             storeid::varchar AS store_src_id,
 
-            COALESCE(storename,'n.a.') AS store_name,
+            COALESCE(storename, 'n.a.') AS store_name,
 
-            COALESCE(storeaddress,'n.a.') AS address,
+            COALESCE(storeaddress, 'n.a.') AS address,
 
-            COALESCE(storecountry,'n.a.') AS country,
+            COALESCE(storecountry, 'n.a.') AS country,
 
-            COALESCE(storecity,'n.a.') AS city,
+            COALESCE(storecity, 'n.a.') AS city,
 
             'STORE' AS source_system,
 
@@ -589,14 +593,15 @@ BEGIN
 
         FROM sa_store_sales.src_store_sales
 
+        WHERE storeid IS NOT NULL
+
+        ORDER BY storeid
     ) src
 
     LEFT JOIN bl_3nf.ce_geographies g
-
-           ON g.country = src.country
-          AND g.city = src.city
-          AND g.source_system = 'STORE'
-          AND g.source_entity = 'STORES'
+       ON g.geo_src_id = src.store_src_id
+      AND g.source_system = src.source_system
+      AND g.source_entity = src.source_entity
 
     WHERE NOT EXISTS
     (
@@ -730,38 +735,6 @@ EXCEPTION
 END;
 $$;
 
--- Loop
-
-
-CREATE OR REPLACE PROCEDURE bl_cl.load_all_3nf()
-LANGUAGE plpgsql
-AS
-$$
-DECLARE
-    proc_name TEXT;
-BEGIN
-
-    FOR proc_name IN
-        SELECT procedure_name
-        FROM
-        (
-            VALUES
-                ('load_ce_dates'),
-                ('load_ce_geographies'),
-                ('load_ce_customers'),
-                ('load_ce_stores'),
-                ('load_ce_employees'),
-                ('load_ce_products_scd')
-        ) p(procedure_name)
-
-    LOOP
-
-        EXECUTE format('CALL bl_cl.%I()', proc_name);
-
-    END LOOP;
-
-END;
-$$;
 
 CREATE OR REPLACE FUNCTION bl_cl.get_products()
 RETURNS TABLE
@@ -877,12 +850,12 @@ FROM sa_online_sales.src_online_sales s
 JOIN bl_3nf.ce_customers c
     ON c.customer_src_id = s.customerid
    AND c.source_system = 'ONLINE'
-   AND c.source_entity = 'src_online_sales'
+   AND c.source_entity = 'CUSTOMERS'
 
 JOIN bl_3nf.ce_products_scd p
     ON p.product_src_id = s.productid
    AND p.source_system = 'ONLINE'
-   AND p.source_entity = 'src_online_sales'
+   AND p.source_entity = 'PRODUCTS'
    AND p.is_active = TRUE
 
 JOIN bl_3nf.ce_dates d
@@ -891,7 +864,8 @@ JOIN bl_3nf.ce_dates d
 JOIN bl_3nf.ce_geographies g
     ON g.city = s.customercity
    AND g.country = s.customercountry
-   AND g.source_system = 'CUSTOMERS'
+   AND g.source_system = 'ONLINE'
+   AND g.source_entity = 'CUSTOMERS'
    
 
 WHERE NOT EXISTS
@@ -953,23 +927,23 @@ FROM sa_store_sales.src_store_sales s
 JOIN bl_3nf.ce_customers c
     ON c.customer_src_id = s.customerid
    AND c.source_system = 'STORE'
-   AND c.source_entity = 'src_store_sales'
+   AND c.source_entity = 'CUSTOMERS'
 
 JOIN bl_3nf.ce_products_scd p
     ON p.product_src_id = s.productid
    AND p.source_system = 'STORE'
-   AND p.source_entity = 'src_store_sales'
+   AND p.source_entity = 'PRODUCTS'
    AND p.is_active = TRUE
 
 JOIN bl_3nf.ce_stores st
     ON st.store_src_id = s.storeid
     AND st.source_system = 'STORE'
-    AND st.source_entity = 'src_store_sales'
+    AND st.source_entity = 'STORES'
 
 LEFT JOIN bl_3nf.ce_employees e
     ON e.employee_src_id = s.employeeid
     AND e.source_system = 'STORE'
-    AND e.source_entity = 'src_store_sales'
+    AND e.source_entity = 'EMPLOYEES'
 
 JOIN bl_3nf.ce_dates d
     ON d.full_date = s.saledate
@@ -977,7 +951,8 @@ JOIN bl_3nf.ce_dates d
 JOIN bl_3nf.ce_geographies g
     ON g.city = s.storecity
    AND g.country = s.storecountry
-   AND g.source_system = 'STORES'
+   AND g.source_system = 'STORE'
+   AND g.source_entity = 'STORES'
 
 WHERE NOT EXISTS
 (
@@ -996,8 +971,11 @@ v_rows_affected := v_rows_affected + v_inserted;
     CALL bl_cl.log_etl
     (
         'load_ce_sales',
-        v_rows_affected,
-        'CE_SALES loaded successfully.'
+	    'ONLINE,STORE',
+	    'SRC_ONLINE_SALES,SRC_STORE_SALES',
+	    'CE_SALES',
+	    v_rows_affected,
+	    'CE_SALES loaded successfully.'
     );
 
 EXCEPTION
@@ -1006,8 +984,11 @@ EXCEPTION
         CALL bl_cl.log_etl
         (
             'load_ce_sales',
-            0,
-            SQLERRM
+		    'ONLINE,STORE',
+		    'SRC_ONLINE_SALES,SRC_STORE_SALES',
+		    'CE_SALES',
+		    0,
+		    SQLERRM
         );
 
         RAISE;

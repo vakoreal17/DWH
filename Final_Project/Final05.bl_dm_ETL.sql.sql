@@ -65,7 +65,7 @@ BEGIN
         ) g
           ON c.country = g.country
          AND c.city = g.city
-        WHERE c.customer_src_id <> -1
+        WHERE c.customer_src_id <> '-1'
         ORDER BY c.customer_src_id, c.customer_id
     ) AS src
 
@@ -131,8 +131,11 @@ BEGIN
 
     CALL bl_cl.log_etl(
         'load_dim_customer',
-        v_rows_affected,
-        'DIM_CUSTOMER loaded successfully.'
+		'ONLINE,STORE',
+		'CUSTOMERS',
+		'DIM_CUSTOMER',
+		 v_rows_affected,
+		'DIM_CUSTOMER loaded successfully.'
     );
 
 EXCEPTION
@@ -140,8 +143,11 @@ EXCEPTION
 
         CALL bl_cl.log_etl(
             'load_dim_customer',
-            0,
-            SQLERRM
+		    'ONLINE,STORE',
+		    'CUSTOMERS',
+		    'DIM_CUSTOMER',
+		    0,
+		    SQLERRM
         );
 
         RAISE;
@@ -279,8 +285,11 @@ BEGIN
 
     CALL bl_cl.log_etl(
         'load_dim_employee',
-        v_rows_affected,
-        'DIM_EMPLOYEE loaded successfully.'
+	    'STORE',
+	    'EMPLOYEES',
+	    'DIM_EMPLOYEE',
+	    v_rows_affected,
+	    'DIM_EMPLOYEE loaded successfully.'
     );
 
 EXCEPTION
@@ -288,8 +297,11 @@ EXCEPTION
 
         CALL bl_cl.log_etl(
             'load_dim_employee',
-            0,
-            SQLERRM
+		    'STORE',
+		    'EMPLOYEES',
+		    'DIM_EMPLOYEE',
+		    0,
+		    SQLERRM
         );
 
         RAISE;
@@ -414,8 +426,11 @@ BEGIN
 
     CALL bl_cl.log_etl(
         'load_dim_store',
-        v_rows_affected,
-        'DIM_STORE loaded successfully.'
+	    'STORE',
+	    'STORES',
+	    'DIM_STORE',
+	    v_rows_affected,
+	    'DIM_STORE loaded successfully.'
     );
 
 EXCEPTION
@@ -423,8 +438,11 @@ EXCEPTION
 
         CALL bl_cl.log_etl(
             'load_dim_store',
-            0,
-            SQLERRM
+		    'STORE',
+		    'STORES',
+		    'DIM_STORE',
+		    0,
+		    SQLERRM
         );
 
         RAISE;
@@ -528,8 +546,11 @@ BEGIN
 
     CALL bl_cl.log_etl(
         'load_dim_time_day',
-        v_rows_affected,
-        'DIM_TIME_DAY loaded successfully.'
+	    'BL_3NF',
+	    'CE_DATES',
+	    'DIM_TIME_DAY',
+	    v_rows_affected,
+	    'DIM_TIME_DAY loaded successfully.'
     );
 
 EXCEPTION
@@ -537,8 +558,11 @@ EXCEPTION
 
         CALL bl_cl.log_etl(
             'load_dim_time_day',
-            0,
-            SQLERRM
+		    'BL_3NF',
+		    'CE_DATES',
+		    'DIM_TIME_DAY',
+		    0,
+		    SQLERRM
         );
 
         RAISE;
@@ -590,10 +614,15 @@ BEGIN
            is_active = 'N'
     FROM
     (
-        SELECT DISTINCT ON (product_src_id)
+        SELECT DISTINCT ON (product_src_id, source_system, source_entity)
                *
         FROM bl_3nf.ce_products_scd
-        ORDER BY product_src_id, insert_dt DESC, product_id DESC
+        ORDER BY
+		    product_src_id,
+		    source_system,
+		    source_entity,
+		    insert_dt DESC,
+		    product_id DESC
     ) s
     WHERE d.product_src_id = s.product_src_id
       AND d.is_active='Y'
@@ -668,10 +697,15 @@ BEGIN
 
     FROM
     (
-        SELECT DISTINCT ON (product_src_id)
+        SELECT DISTINCT ON (product_src_id, source_system, source_entity)
                *
         FROM bl_3nf.ce_products_scd
-        ORDER BY product_src_id, insert_dt DESC, product_id DESC
+        ORDER BY
+		    product_src_id,
+		    source_system,
+		    source_entity,
+		    insert_dt DESC,
+		    product_id DESC
     ) s
 
     LEFT JOIN bl_dm.dim_products_scd d
@@ -696,8 +730,11 @@ BEGIN
 
     CALL bl_cl.log_etl(
         'load_dim_products_scd',
-        v_rows_affected,
-        'DIM_PRODUCTS_SCD loaded successfully.'
+	    'ONLINE,STORE',
+	    'PRODUCTS',
+	    'DIM_PRODUCTS_SCD',
+	    v_rows_affected,
+	    'DIM_PRODUCTS_SCD loaded successfully.'
     );
 
 EXCEPTION
@@ -705,8 +742,11 @@ EXCEPTION
 
         CALL bl_cl.log_etl(
             'load_dim_products_scd',
-            0,
-            SQLERRM
+		    'ONLINE,STORE',
+		    'PRODUCTS',
+		    'DIM_PRODUCTS_SCD',
+		    0,
+		    SQLERRM
         );
 
         RAISE;
@@ -793,12 +833,16 @@ BEGIN
 		
 		JOIN bl_dm.dim_customer dc
 		    ON dc.customer_src_id = c.customer_src_id
+		   AND dc.source_system = c.source_system
+		   AND dc.source_entity = c.source_entity
 		
 		JOIN bl_3nf.ce_products_scd p
 		    ON p.product_id = s.product_id
 		
 		JOIN bl_dm.dim_products_scd dp
 		    ON dp.product_src_id = p.product_src_id
+		   AND dp.source_system = p.source_system
+		   AND dp.source_entity = p.source_entity
 		   AND dp.is_active = 'Y'
 		
 		JOIN bl_3nf.ce_stores st
@@ -806,12 +850,16 @@ BEGIN
 		
 		JOIN bl_dm.dim_store ds
 		    ON ds.store_src_id = st.store_src_id
+		   AND ds.source_system = st.source_system
+		   AND ds.source_entity = st.source_entity
 		
 		LEFT JOIN bl_3nf.ce_employees e
 		    ON e.employee_id = s.employee_id
 		
 		LEFT JOIN bl_dm.dim_employee de
 		    ON de.employee_src_id = e.employee_src_id
+		   AND de.source_system = e.source_system
+		   AND de.source_entity = e.source_entity
 		
 		JOIN bl_3nf.ce_dates d
 		    ON d.date_id = s.date_id
@@ -846,8 +894,11 @@ BEGIN
 	CALL bl_cl.log_etl
     (
         'load_fct_sales_dd',
-        v_rows_affected,
-        'FCT_SALES_DD loaded successfully.'
+	    'ONLINE,STORE',
+	    'SALES',
+	    'FCT_SALES_DD',
+	    v_rows_affected,
+	    'FCT_SALES_DD loaded successfully.'
     );
 
 EXCEPTION
@@ -856,8 +907,11 @@ EXCEPTION
         CALL bl_cl.log_etl
         (
             'load_fct_sales_dd',
-            0,
-            SQLERRM
+		    'ONLINE,STORE',
+		    'SALES',
+		    'FCT_SALES_DD',
+		    0,
+		    SQLERRM
         );
 
         RAISE;
@@ -899,7 +953,7 @@ $$;
 
 -- GRANT PRIVILEGES TO BL_CL
 
-
+/*
 GRANT USAGE
 ON SCHEMA bl_dm
 TO bl_cl;
@@ -923,7 +977,7 @@ TO bl_cl;
 GRANT USAGE
 ON TYPE bl_cl.sale_fact_rec
 TO bl_cl;
-
+*/
 ---------
 
 

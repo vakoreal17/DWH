@@ -6,8 +6,11 @@ BEGIN
 
     CALL bl_cl.log_etl(
         'load_dwh',
-        0,
-        'DWH load started.'
+	    'DWH',
+	    'MASTER',
+	    'DWH',
+	    0,
+	    'DWH load started.'
     );
 
     ----------------------------------------------------------------
@@ -33,8 +36,11 @@ BEGIN
 
     CALL bl_cl.log_etl(
         'load_dwh',
-        0,
-        'DWH load completed successfully.'
+	    'DWH',
+	    'MASTER',
+	    'DWH',
+	    0,
+	    'DWH load completed successfully.'
     );
 
 EXCEPTION
@@ -42,8 +48,11 @@ EXCEPTION
 
         CALL bl_cl.log_etl(
             'load_dwh',
-            0,
-            SQLERRM
+		    'DWH',
+		    'MASTER',
+		    'DWH',
+		    0,
+		    SQLERRM
         );
 
         RAISE;
@@ -51,4 +60,6 @@ EXCEPTION
 END;
 $$;
 
+
+CALL bl_cl.load_dwh();
 
