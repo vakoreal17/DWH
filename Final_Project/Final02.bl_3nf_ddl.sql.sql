@@ -391,5 +391,3 @@ WHERE NOT EXISTS
     WHERE employee_id = -1
 );
 
-COMMIT;
-

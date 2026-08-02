@@ -94,7 +94,6 @@ BEGIN
         source_entity,
         geo_src_id
     )
-
     SELECT
         src.country,
         src.city,
@@ -106,42 +105,51 @@ BEGIN
         -------------------------------------------------
         -- Online Customers
         -------------------------------------------------
-
-        SELECT DISTINCT
-            COALESCE(customercountry,'n.a.') AS country,
-            COALESCE(customercity,'n.a.') AS city,
+        SELECT
+            COALESCE(customercountry, 'n.a.') AS country,
+            COALESCE(customercity, 'n.a.') AS city,
             'ONLINE' AS source_system,
             'CUSTOMERS' AS source_entity,
-            customerid::varchar AS geo_src_id
+            COALESCE(customercountry, 'n.a.') || '|' ||
+            COALESCE(customercity, 'n.a.') AS geo_src_id
         FROM sa_online_sales.src_online_sales
+        GROUP BY
+            customercountry,
+            customercity
 
         UNION
 
         -------------------------------------------------
         -- Store Customers
         -------------------------------------------------
-
-        SELECT DISTINCT
-            COALESCE(customercountry,'n.a.'),
-            COALESCE(customercity,'n.a.'),
+        SELECT
+            COALESCE(customercountry, 'n.a.'),
+            COALESCE(customercity, 'n.a.'),
             'STORE',
             'CUSTOMERS',
-            customerid::varchar
+            COALESCE(customercountry, 'n.a.') || '|' ||
+            COALESCE(customercity, 'n.a.')
         FROM sa_store_sales.src_store_sales
+        GROUP BY
+            customercountry,
+            customercity
 
         UNION
 
         -------------------------------------------------
         -- Stores
         -------------------------------------------------
-
-        SELECT DISTINCT
-            COALESCE(storecountry,'n.a.'),
-            COALESCE(storecity,'n.a.'),
+        SELECT
+            COALESCE(storecountry, 'n.a.'),
+            COALESCE(storecity, 'n.a.'),
             'STORE',
             'STORES',
-            storeid::varchar
+            COALESCE(storecountry, 'n.a.') || '|' ||
+            COALESCE(storecity, 'n.a.')
         FROM sa_store_sales.src_store_sales
+        GROUP BY
+            storecountry,
+            storecity
 
     ) src
 
@@ -149,33 +157,34 @@ BEGIN
     (
         SELECT 1
         FROM bl_3nf.ce_geographies g
-        WHERE g.source_system = src.source_system
-         	AND g.geo_src_id = src.geo_src_id
-			AND g.source_entity = src.source_entity
+        WHERE g.country = src.country
+          AND g.city = src.city
+          AND g.source_system = src.source_system
+          AND g.source_entity = src.source_entity
     );
 
-GET DIAGNOSTICS v_rows_affected = ROW_COUNT;
+    GET DIAGNOSTICS v_rows_affected = ROW_COUNT;
 
-CALL bl_cl.log_etl(
-    'load_ce_geographies',
-    'ONLINE,STORE',
-    'CUSTOMERS,STORES',
-    'CE_GEOGRAPHIES',
-    v_rows_affected,
-    'Load completed successfully.'
-);
+    CALL bl_cl.log_etl(
+        'load_ce_geographies',
+        'ONLINE,STORE',
+        'CUSTOMERS,STORES',
+        'CE_GEOGRAPHIES',
+        v_rows_affected,
+        'Load completed successfully.'
+    );
 
 EXCEPTION
     WHEN OTHERS THEN
 
         CALL bl_cl.log_etl(
-		    'load_ce_geographies',
-		    'ONLINE,STORE',
-		    'CUSTOMERS,STORES',
-		    'CE_GEOGRAPHIES',
-		    0,
-		    SQLERRM
-		);
+            'load_ce_geographies',
+            'ONLINE,STORE',
+            'CUSTOMERS,STORES',
+            'CE_GEOGRAPHIES',
+            0,
+            SQLERRM
+        );
 
         RAISE;
 END;
@@ -586,6 +595,9 @@ BEGIN
             COALESCE(storecountry, 'n.a.') AS country,
 
             COALESCE(storecity, 'n.a.') AS city,
+			
+			COALESCE(storecountry, 'n.a.') || '|' ||
+			COALESCE(storecity, 'n.a.') AS geo_src_id,
 
             'STORE' AS source_system,
 
@@ -599,7 +611,7 @@ BEGIN
     ) src
 
     LEFT JOIN bl_3nf.ce_geographies g
-       ON g.geo_src_id = src.store_src_id
+       ON g.geo_src_id = src.geo_src_id
       AND g.source_system = src.source_system
       AND g.source_entity = src.source_entity
 
@@ -803,6 +815,7 @@ DECLARE
     v_rows_affected INTEGER := 0;
     v_inserted INTEGER;
 BEGIN
+RAISE NOTICE 'Starting ONLINE insert';
 INSERT INTO bl_3nf.ce_sales
 (
     customer_id,
@@ -847,6 +860,7 @@ SELECT
     CURRENT_TIMESTAMP
 FROM sa_online_sales.src_online_sales s
 
+
 JOIN bl_3nf.ce_customers c
     ON c.customer_src_id = s.customerid
    AND c.source_system = 'ONLINE'
@@ -875,7 +889,9 @@ WHERE NOT EXISTS
     WHERE cs.sales_src_id = s.onlineorderid
       AND cs.source_system = 'ONLINE'
       AND cs.source_entity = 'src_online_sales'
-);
+)
+
+ON CONFLICT (source_system, source_entity, sales_src_id) DO NOTHING;
 
 GET DIAGNOSTICS v_inserted = ROW_COUNT;
 v_rows_affected := v_rows_affected + v_inserted;
@@ -966,7 +982,6 @@ WHERE NOT EXISTS
 GET DIAGNOSTICS v_inserted = ROW_COUNT;
 v_rows_affected := v_rows_affected + v_inserted;
 
-    RAISE NOTICE 'Loading CE_SALES...';
 
     CALL bl_cl.log_etl
     (
@@ -1068,6 +1083,30 @@ EXCEPTION
 END;
 $$;
 
+CREATE INDEX IF NOT EXISTS idx_ce_customers_lookup
+ON bl_3nf.ce_customers
+(customer_src_id, source_system, source_entity);
+
+CREATE INDEX IF NOT EXISTS idx_ce_products_lookup
+ON bl_3nf.ce_products_scd
+(product_src_id, source_system, source_entity, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_ce_geographies_lookup
+ON bl_3nf.ce_geographies
+(country, city, source_system, source_entity);
+
+CREATE INDEX IF NOT EXISTS idx_ce_dates_lookup
+ON bl_3nf.ce_dates
+(full_date);
+
+CREATE INDEX IF NOT EXISTS idx_ce_stores_lookup
+ON bl_3nf.ce_stores
+(store_src_id, source_system, source_entity);
+
+CREATE INDEX IF NOT EXISTS idx_ce_employees_lookup
+ON bl_3nf.ce_employees
+(employee_src_id, source_system, source_entity);
+/*
 -- Privileges
 GRANT USAGE ON SCHEMA bl_3nf TO bl_cl;
 
@@ -1078,3 +1117,29 @@ TO bl_cl;
 GRANT USAGE, SELECT
 ON ALL SEQUENCES IN SCHEMA bl_3nf
 TO bl_cl;
+*/
+
+
+-- Dates
+CREATE INDEX IF NOT EXISTS idx_ce_dates_lookup
+ON bl_3nf.ce_dates(full_date);
+
+-- Customers
+CREATE INDEX IF NOT EXISTS idx_ce_customers_lookup
+ON bl_3nf.ce_customers
+(customer_src_id, source_system, source_entity);
+
+-- Products (active only)
+CREATE INDEX IF NOT EXISTS idx_ce_products_active
+ON bl_3nf.ce_products_scd
+(product_src_id, source_system, source_entity, is_active);
+
+-- Stores
+CREATE INDEX IF NOT EXISTS idx_ce_stores_lookup
+ON bl_3nf.ce_stores
+(store_src_id, source_system, source_entity);
+
+-- Employees
+CREATE INDEX IF NOT EXISTS idx_ce_employees_lookup
+ON bl_3nf.ce_employees
+(employee_src_id, source_system, source_entity);

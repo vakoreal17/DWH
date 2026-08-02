@@ -21,7 +21,7 @@ END $$;
 -- Create Staging Schema
 ------------------------------------------------------------
 
-CREATE SCHEMA if not exists sa_online_sales;
+create schema if not exists sa_online_sales;
 
 ------------------------------------------------------------
 -- Create External (Foreign) Table
@@ -84,6 +84,14 @@ BEGIN
 
     END IF;
 END $$;
+
+
+ALTER FOREIGN TABLE sa_online_sales.ext_online_sales
+OPTIONS (
+    SET filename 'C:/Users/Vago/Desktop/Task_1/generated_data/nike_online_sales(10k).csv'
+);
+
+
 
 
 CREATE TABLE if not exists  sa_online_sales.src_online_sales
@@ -232,6 +240,14 @@ BEGIN
     END IF;
 END $$;
 
+
+ALTER FOREIGN TABLE sa_store_sales.ext_store_sales
+OPTIONS (
+    SET filename 'C:/Users/Vago/Desktop/Task_1/generated_data/nike_store_sales(10k).csv'
+);
+
+
+
 SELECT *
 FROM sa_store_sales.ext_store_sales
 LIMIT 10;
@@ -290,13 +306,14 @@ CREATE TABLE if not exists sa_store_sales.src_store_sales
 INSERT INTO sa_store_sales.src_store_sales
 SELECT DISTINCT e.*
 FROM sa_store_sales.ext_store_sales e
-WHERE e.receiptid IS NOT NULL
+WHERE e.ReceiptID IS NOT NULL
   AND NOT EXISTS
 (
     SELECT 1
     FROM sa_store_sales.src_store_sales s
     WHERE s.receiptid = e.receiptid
 );
+
 
 SELECT COUNT(*) external_rows
 FROM sa_store_sales.ext_store_sales;
@@ -311,3 +328,4 @@ LIMIT 10;
 SELECT *
 FROM sa_store_sales.src_store_sales
 LIMIT 10;
+
