@@ -279,11 +279,11 @@ BEGIN
             s.store_id AS store_src_id,
             s.store_name,
 
-            g.geo_id AS city_src_id,
-            g.city,
+            COALESCE(g.geo_id, -1) AS city_src_id,
+			COALESCE(g.city, 'Unknown') AS city,
 
-            g.geo_id AS country_src_id,
-            g.country,
+            COALESCE(g.geo_id, -1) AS country_src_id,
+			COALESCE(g.country, 'Unknown') AS country,
 
             e.source_system,
             e.source_entity,
@@ -296,7 +296,7 @@ BEGIN
         INNER JOIN bl_3nf.ce_stores s
             ON e.store_id = s.store_id
 
-        INNER JOIN bl_3nf.ce_geographies g
+        LEFT JOIN bl_3nf.ce_geographies g
             ON s.geo_id = g.geo_id
 
         WHERE e.employee_src_id <> '-1'
@@ -429,11 +429,10 @@ AS
 $$
 DECLARE
     v_rows_affected INTEGER := 0;
-BEGIN
 
-    MERGE INTO bl_dm.dim_store AS tgt
-    USING
-    (
+    rec_store RECORD;
+
+    cur_store CURSOR FOR
         SELECT
             s.store_src_id,
             s.store_name,
@@ -452,64 +451,77 @@ BEGIN
             COALESCE(s.update_dt::date, CURRENT_DATE) AS update_dt
 
         FROM bl_3nf.ce_stores s
-
         INNER JOIN bl_3nf.ce_geographies g
             ON s.geo_id = g.geo_id
+        WHERE s.store_src_id <> '-1';
 
-        WHERE s.store_src_id <> '-1'
+BEGIN
 
-    ) src
+    FOR rec_store IN cur_store
+    LOOP
 
-    ON tgt.store_src_id = src.store_src_id
-
-    WHEN MATCHED THEN
-        UPDATE
-        SET
-            store_name      = src.store_name,
-            address         = src.address,
-            city_src_id     = src.city_src_id,
-            city            = src.city,
-            country_src_id  = src.country_src_id,
-            country         = src.country,
-            source_system   = src.source_system,
-            source_entity   = src.source_entity,
-            update_dt       = src.update_dt
-
-    WHEN NOT MATCHED THEN
-        INSERT
+        IF EXISTS
         (
-            store_surr_id,
-            store_src_id,
-            store_name,
-            address,
-            city_src_id,
-            city,
-            country_src_id,
-            country,
-            source_system,
-            source_entity,
-            insert_dt,
-            update_dt
+            SELECT 1
+            FROM bl_dm.dim_store d
+            WHERE d.store_src_id = rec_store.store_src_id
         )
-        VALUES
-        (
-            nextval('bl_dm.seq_dim_store_surr_id'),
-            src.store_src_id,
-            src.store_name,
-            src.address,
-            src.city_src_id,
-            src.city,
-            src.country_src_id,
-            src.country,
-            src.source_system,
-            src.source_entity,
-            src.insert_dt,
-            src.update_dt
-        );
+        THEN
 
-    GET DIAGNOSTICS v_rows_affected = ROW_COUNT;
+            UPDATE bl_dm.dim_store
+            SET
+                store_name     = rec_store.store_name,
+                address        = rec_store.address,
+                city_src_id    = rec_store.city_src_id,
+                city           = rec_store.city,
+                country_src_id = rec_store.country_src_id,
+                country        = rec_store.country,
+                source_system  = rec_store.source_system,
+                source_entity  = rec_store.source_entity,
+                update_dt      = rec_store.update_dt
+            WHERE store_src_id = rec_store.store_src_id;
 
-    CALL bl_cl.log_etl(
+        ELSE
+
+            INSERT INTO bl_dm.dim_store
+            (
+                store_surr_id,
+                store_src_id,
+                store_name,
+                address,
+                city_src_id,
+                city,
+                country_src_id,
+                country,
+                source_system,
+                source_entity,
+                insert_dt,
+                update_dt
+            )
+            VALUES
+            (
+                nextval('bl_dm.seq_dim_store_surr_id'),
+                rec_store.store_src_id,
+                rec_store.store_name,
+                rec_store.address,
+                rec_store.city_src_id,
+                rec_store.city,
+                rec_store.country_src_id,
+                rec_store.country,
+                rec_store.source_system,
+                rec_store.source_entity,
+                rec_store.insert_dt,
+                rec_store.update_dt
+            );
+
+        END IF;
+
+        v_rows_affected := v_rows_affected + 1;
+
+    END LOOP;
+
+    CALL bl_cl.log_etl
+    (
         'load_dim_store',
         v_rows_affected,
         'DIM_STORE loaded successfully.'
@@ -518,7 +530,8 @@ BEGIN
 EXCEPTION
     WHEN OTHERS THEN
 
-        CALL bl_cl.log_etl(
+        CALL bl_cl.log_etl
+        (
             'load_dim_store',
             0,
             SQLERRM
@@ -695,6 +708,7 @@ AS
 $$
 DECLARE
     v_rows_affected INTEGER := 0;
+
 BEGIN
 
     ------------------------------------------------------------------
@@ -715,15 +729,15 @@ BEGIN
       AND d.is_active='Y'
       AND
       (
-            d.product_name <> s.product_name
-         OR d.brand <> s.brand
-         OR d.category <> s.category
-         OR d.subcategory <> s.subcategory
-         OR d.color <> s.color
-         OR d.size <> s.size
-         OR d.unit_price <> s.unit_price
-         OR d.unit_cost <> s.unit_cost
-      );
+            d.product_name IS DISTINCT FROM s.product_name
+		   OR d.brand IS DISTINCT FROM s.brand
+		   OR d.category IS DISTINCT FROM s.category
+		   OR d.subcategory IS DISTINCT FROM s.subcategory
+		   OR d.color IS DISTINCT FROM s.color
+		   OR d.size IS DISTINCT FROM s.size
+		   OR d.unit_price IS DISTINCT FROM s.unit_price
+		   OR d.unit_cost IS DISTINCT FROM s.unit_cost
+		);
 
     ------------------------------------------------------------------
     -- Insert new products and new versions
@@ -797,16 +811,16 @@ BEGIN
     WHERE d.product_src_id IS NULL
 
        OR
-       (
-            d.product_name <> s.product_name
-         OR d.brand <> s.brand
-         OR d.category <> s.category
-         OR d.subcategory <> s.subcategory
-         OR d.color <> s.color
-         OR d.size <> s.size
-         OR d.unit_price <> s.unit_price
-         OR d.unit_cost <> s.unit_cost
-       );
+		(
+			  d.product_name IS DISTINCT FROM s.product_name
+		   OR d.brand IS DISTINCT FROM s.brand
+		   OR d.category IS DISTINCT FROM s.category
+		   OR d.subcategory IS DISTINCT FROM s.subcategory
+		   OR d.color IS DISTINCT FROM s.color
+		   OR d.size IS DISTINCT FROM s.size
+		   OR d.unit_price IS DISTINCT FROM s.unit_price
+		   OR d.unit_cost IS DISTINCT FROM s.unit_cost
+		);
 
     GET DIAGNOSTICS v_rows_affected = ROW_COUNT;
 
@@ -910,7 +924,7 @@ BEGIN
 		    update_dt
 	)
 		SELECT
-		    dc.customer_surr_id,
+		    COALESCE(dc.customer_surr_id, -1),
 		    dp.product_surr_id,
 		    ds.store_surr_id,
 		    COALESCE(de.employee_surr_id, -1),
@@ -932,20 +946,20 @@ BEGIN
 		JOIN bl_3nf.ce_customers c
 		    ON c.customer_id = s.customer_id
 		
-		JOIN bl_dm.dim_customer dc
+		LEFT JOIN bl_dm.dim_customer dc
 		    ON dc.customer_src_id = c.customer_src_id
 		
 		JOIN bl_3nf.ce_products_scd p
 		    ON p.product_id = s.product_id
 		
-		JOIN bl_dm.dim_products_scd dp
+		LEFT JOIN bl_dm.dim_products_scd dp
 		    ON dp.product_src_id = p.product_src_id
 		   AND dp.is_active = 'Y'
 		
 		JOIN bl_3nf.ce_stores st
 		    ON st.store_id = s.store_id
 		
-		JOIN bl_dm.dim_store ds
+		LEFT JOIN bl_dm.dim_store ds
 		    ON ds.store_src_id = st.store_src_id
 		
 		LEFT JOIN bl_3nf.ce_employees e
@@ -957,24 +971,14 @@ BEGIN
 		JOIN bl_3nf.ce_dates d
 		    ON d.date_id = s.date_id
 		
-		JOIN bl_dm.dim_time_day dt
+		LEFT JOIN bl_dm.dim_time_day dt
 		    ON dt.event_dt = d.full_date
-		WHERE d.full_date >=
-		(
-		    date_trunc
-		    (
-		        'month',
-		        (
-		            SELECT MAX(full_date)
-		            FROM bl_3nf.ce_dates
-		        )
-		    ) - interval '2 months'
-		)
-		AND NOT EXISTS
+		
+		WHERE NOT EXISTS
 		(
 		    SELECT 1
 		    FROM bl_dm.fct_sales_dd f
-		    WHERE f.customer_surr_id = dc.customer_surr_id
+		    WHERE f.customer_surr_id = COALESCE(dc.customer_surr_id, -1)
 		      AND f.product_surr_id = dp.product_surr_id
 		      AND f.store_surr_id = ds.store_surr_id
 		      AND f.employee_surr_id = COALESCE(de.employee_surr_id, -1)
@@ -1258,6 +1262,7 @@ DECLARE
     v_rows_affected INTEGER := 0;
     v_inserted INTEGER;
 BEGIN
+	RAISE NOTICE 'Loading CE_SALES...';
 INSERT INTO bl_3nf.ce_sales
 (
     customer_id,
@@ -1404,7 +1409,6 @@ WHERE NOT EXISTS
 GET DIAGNOSTICS v_inserted = ROW_COUNT;
 v_rows_affected := v_rows_affected + v_inserted;
 
-    RAISE NOTICE 'Loading CE_SALES...';
 
     CALL bl_cl.log_etl
     (
@@ -1484,14 +1488,25 @@ AS
 $$
 BEGIN
 
-    -- Detach oldest partition
-    ALTER TABLE bl_dm.fct_sales_dd
-    DETACH PARTITION bl_dm.fct_sales_2025_10;
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM pg_class c
+        JOIN pg_namespace n
+          ON n.oid = c.relnamespace
+        WHERE c.relname = 'fct_sales_2025_10'
+          AND n.nspname = 'bl_dm'
+    )
+    THEN
 
-    -- Attach it back
-    ALTER TABLE bl_dm.fct_sales_dd
-    ATTACH PARTITION bl_dm.fct_sales_2025_10
-    FOR VALUES FROM ('2025-10-01') TO ('2025-11-01');
+        EXECUTE
+        '
+        CREATE TABLE bl_dm.fct_sales_2025_10
+        PARTITION OF bl_dm.fct_sales_dd
+        FOR VALUES FROM (''2025-10-01'') TO (''2025-11-01'')
+        ';
+
+    END IF;
 
 END;
 $$;
